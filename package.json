@@ -1,0 +1,41 @@
+{
+  "name": "@ablea/cashless",
+  "version": "1.0.1",
+  "description": "TypeScript SDK for MTN MoMo and Airtel Money mobile-money operations",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mobile-money",
+    "mtn-momo",
+    "airtel-money",
+    "payments",
+    "uganda",
+    "ugx"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ablea/cashless-sdk-ts.git"
+  },
+  "homepage": "https://github.com/ablea/cashless-sdk-ts#readme",
+  "bugs": {
+    "url": "https://github.com/ablea/cashless-sdk-ts/issues"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5.9.2",
+    "vitest": "^3.0.0"
+  }
+}
