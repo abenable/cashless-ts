@@ -21,17 +21,16 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'chore(release)') }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -46,20 +45,36 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Decide whether to publish
+        run: |
+          if printf '%s' "${HEAD_COMMIT_MESSAGE}" | grep -q 'chore(release)'; then
+            echo "SHOULD_PUBLISH=false" >> "$GITHUB_ENV"
+          else
+            echo "SHOULD_PUBLISH=true" >> "$GITHUB_ENV"
+          fi
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+
       - name: Configure Git
+        if: env.SHOULD_PUBLISH == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Bump version
-        run: npm version "${VERSION_BUMP}" -m "chore(release): %s"
+        if: env.SHOULD_PUBLISH == 'true'
+        run: |
+          VERSION_BUMP="${VERSION_BUMP_INPUT:-patch}"
+          npm version "${VERSION_BUMP}" -m "chore(release): %s"
         env:
-          VERSION_BUMP: ${{ github.event.inputs.bump || 'patch' }}
+          VERSION_BUMP_INPUT: ${{ github.event.inputs.bump }}
 
       - name: Push version bump and tag
+        if: env.SHOULD_PUBLISH == 'true'
         run: git push origin main --follow-tags
 
       - name: Publish to npm
+        if: env.SHOULD_PUBLISH == 'true'
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
