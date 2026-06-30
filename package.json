@@ -1,6 +1,6 @@
 {
   "name": "@ablea/cashless",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "TypeScript SDK for MTN MoMo and Airtel Money mobile-money operations",
   "type": "module",
   "main": "./dist/index.js",
