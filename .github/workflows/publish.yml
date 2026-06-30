@@ -3,6 +3,17 @@ name: Publish
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump to publish
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
@@ -10,7 +21,7 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, 'chore(release)')"
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'chore(release)') }}
 
     steps:
       - name: Checkout
@@ -41,7 +52,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Bump version
-        run: npm version patch -m "chore(release): %s"
+        run: npm version "${VERSION_BUMP}" -m "chore(release): %s"
+        env:
+          VERSION_BUMP: ${{ github.event.inputs.bump || 'patch' }}
 
       - name: Push version bump and tag
         run: git push origin main --follow-tags
