@@ -4,6 +4,8 @@ export {
   type MomoEnvironment,
   type AccessToken,
   MOMO_SANDBOX_BASE_URL,
+  MOMO_SANDBOX_COLLECTION_BASE_URL,
+  MOMO_SANDBOX_DISBURSEMENT_BASE_URL,
 } from './client.js';
 export { MomoError, type MomoErrorJson } from './errors.js';
 export { CollectionsResource } from './resources/collections.js';

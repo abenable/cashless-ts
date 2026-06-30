@@ -6,11 +6,18 @@ import { DisbursementsResource } from './resources/disbursements.js';
 export type MomoEnvironment = 'sandbox' | 'production';
 
 export const MOMO_SANDBOX_BASE_URL = 'https://sandbox.momodeveloper.mtn.com';
+export const MOMO_SANDBOX_COLLECTION_BASE_URL = `${MOMO_SANDBOX_BASE_URL}/collection`;
+export const MOMO_SANDBOX_DISBURSEMENT_BASE_URL = `${MOMO_SANDBOX_BASE_URL}/disbursement`;
 
 export interface MomoClientOptions {
   apiUser: string;
   apiKey: string;
-  subscriptionKey: string;
+  /** Legacy fallback key used when operation-specific keys are not provided. */
+  subscriptionKey?: string;
+  /** MTN Collections product subscription key. */
+  collectionsSubscriptionKey?: string;
+  /** MTN Disbursements product subscription key. */
+  disbursementsSubscriptionKey?: string;
   /** If omitted, `environment` must be `'sandbox'`. */
   baseUrl?: string;
   /** Determines the default MTN MoMo base URL. */
@@ -19,12 +26,19 @@ export interface MomoClientOptions {
   fetchFn?: typeof fetch;
 }
 
-function resolveMomoBaseUrl(options: Pick<MomoClientOptions, 'baseUrl' | 'environment'>): string {
+export type MomoProduct = 'collections' | 'disbursements';
+
+function resolveMomoBaseUrl(
+  options: Pick<MomoClientOptions, 'baseUrl' | 'environment'>,
+  product: MomoProduct
+): string {
   if (options.baseUrl) {
     return options.baseUrl;
   }
   if (options.environment === 'sandbox') {
-    return MOMO_SANDBOX_BASE_URL;
+    return product === 'disbursements'
+      ? MOMO_SANDBOX_DISBURSEMENT_BASE_URL
+      : MOMO_SANDBOX_COLLECTION_BASE_URL;
   }
   throw new Error(
     'MomoClient: `baseUrl` is required when `environment` is not "sandbox". Provide a baseUrl explicitly.'
@@ -43,7 +57,16 @@ export interface AccessToken {
   expiresIn: number;
 }
 
-export class MomoClient {
+export interface MomoRequestClient {
+  request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    extraHeaders?: Record<string, string>
+  ): Promise<T>;
+}
+
+export class MomoProductClient {
   readonly collections: CollectionsResource;
   readonly disbursements: DisbursementsResource;
   readonly common: CommonResource;
@@ -58,11 +81,11 @@ export class MomoClient {
   private accessToken: string | null = null;
   private tokenExpiry = 0;
 
-  constructor(options: MomoClientOptions) {
+  constructor(options: MomoClientOptions, product: MomoProduct = 'collections') {
     this.apiUser = options.apiUser;
     this.apiKey = options.apiKey;
-    this.subscriptionKey = options.subscriptionKey;
-    this.baseUrl = resolveMomoBaseUrl(options).replace(/\/+$/, '');
+    this.subscriptionKey = resolveMomoSubscriptionKey(options, product);
+    this.baseUrl = resolveMomoBaseUrl(options, product).replace(/\/+$/, '');
     this.targetEnvironment = options.targetEnvironment ?? 'sandbox';
     this.fetchFn = options.fetchFn ?? fetch;
 
@@ -135,4 +158,57 @@ export class MomoClient {
 
     return response.json() as Promise<T>;
   }
+}
+
+export class MomoClient {
+  readonly collections: CollectionsResource;
+  readonly disbursements: DisbursementsResource;
+  readonly collectionCommon: CommonResource;
+  readonly disbursementCommon: CommonResource;
+  /** Collection common resource retained for backwards compatibility. */
+  readonly common: CommonResource;
+
+  private readonly collectionsClient: MomoProductClient;
+  private readonly disbursementsClient: MomoProductClient;
+
+  constructor(options: MomoClientOptions) {
+    this.collectionsClient = new MomoProductClient(options, 'collections');
+    this.disbursementsClient = new MomoProductClient(options, 'disbursements');
+    this.collections = this.collectionsClient.collections;
+    this.disbursements = this.disbursementsClient.disbursements;
+    this.collectionCommon = this.collectionsClient.common;
+    this.disbursementCommon = this.disbursementsClient.common;
+    this.common = this.collectionCommon;
+  }
+
+  createAccessToken(): Promise<AccessToken> {
+    return this.collectionsClient.createAccessToken();
+  }
+
+  request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    extraHeaders?: Record<string, string>
+  ): Promise<T> {
+    return this.collectionsClient.request(method, path, body, extraHeaders);
+  }
+}
+
+function resolveMomoSubscriptionKey(options: MomoClientOptions, product: MomoProduct): string {
+  const productKey =
+    product === 'disbursements'
+      ? options.disbursementsSubscriptionKey
+      : options.collectionsSubscriptionKey;
+  const subscriptionKey = productKey ?? options.subscriptionKey;
+
+  if (!subscriptionKey) {
+    throw new Error(
+      product === 'disbursements'
+        ? 'MomoClient: `disbursementsSubscriptionKey` is required when `subscriptionKey` is not provided.'
+        : 'MomoClient: `collectionsSubscriptionKey` is required when `subscriptionKey` is not provided.'
+    );
+  }
+
+  return subscriptionKey;
 }

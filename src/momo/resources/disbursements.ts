@@ -1,8 +1,8 @@
-import type { MomoClient } from '../client.js';
+import type { MomoRequestClient } from '../client.js';
 import type { Refund, RefundResult, Transfer, TransferResult } from '../types.js';
 
 export class DisbursementsResource {
-  constructor(private readonly client: MomoClient) {}
+  constructor(private readonly client: MomoRequestClient) {}
 
   async transfer(referenceId: string, params: Transfer): Promise<void> {
     return this.client.request<void>('POST', '/v1_0/transfer', params, {

@@ -1,8 +1,8 @@
-import type { MomoClient } from '../client.js';
+import type { MomoRequestClient } from '../client.js';
 import type { AccountHolderActive, Balance } from '../types.js';
 
 export class CommonResource {
-  constructor(private readonly client: MomoClient) {}
+  constructor(private readonly client: MomoRequestClient) {}
 
   getBalance(): Promise<Balance> {
     return this.client.request<Balance>('GET', '/v1_0/account/balance');

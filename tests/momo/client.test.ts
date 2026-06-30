@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { MomoClient, MOMO_SANDBOX_BASE_URL } from '../../src/momo/client.js';
+import {
+  MomoClient,
+  MOMO_SANDBOX_COLLECTION_BASE_URL,
+  MOMO_SANDBOX_DISBURSEMENT_BASE_URL,
+} from '../../src/momo/client.js';
 import { MomoError } from '../../src/momo/errors.js';
 
 describe('MomoClient', () => {
@@ -7,6 +11,8 @@ describe('MomoClient', () => {
   const apiUser = 'test-api-user';
   const apiKey = 'test-api-key';
   const subscriptionKey = 'test-subscription-key';
+  const collectionsSubscriptionKey = 'test-collections-key';
+  const disbursementsSubscriptionKey = 'test-disbursements-key';
   const targetEnvironment = 'sandbox';
 
   function createClient(fetchFn: typeof fetch) {
@@ -25,7 +31,7 @@ describe('MomoClient', () => {
     expect(client).toBeDefined();
   });
 
-  it('resolves the sandbox base url from environment', async () => {
+  it('resolves the sandbox collections base url from environment', async () => {
     const fetchFn = vi.fn<typeof fetch>();
     fetchFn.mockResolvedValueOnce(
       new Response(
@@ -44,7 +50,88 @@ describe('MomoClient', () => {
 
     await client.createAccessToken();
     const [url] = fetchFn.mock.calls[0];
-    expect(url).toBe(`${MOMO_SANDBOX_BASE_URL}/token/`);
+    expect(url).toBe(`${MOMO_SANDBOX_COLLECTION_BASE_URL}/token/`);
+  });
+
+  it('uses the disbursement sandbox base url and key for disbursement calls', async () => {
+    const fetchFn = vi.fn<typeof fetch>();
+    fetchFn.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ access_token: 'disb-token', token_type: 'Bearer', expires_in: 3600 }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    fetchFn.mockResolvedValueOnce(new Response(null, { status: 202 }));
+
+    const client = new MomoClient({
+      apiUser,
+      apiKey,
+      collectionsSubscriptionKey,
+      disbursementsSubscriptionKey,
+      environment: 'sandbox',
+      fetchFn,
+    });
+
+    await client.disbursements.transfer('ref-123', {
+      amount: '100',
+      currency: 'EUR',
+      externalId: 'ext-1',
+      payee: { partyIdType: 'MSISDN', partyId: '46733123499' },
+    });
+
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(fetchFn.mock.calls[0][0]).toBe(`${MOMO_SANDBOX_DISBURSEMENT_BASE_URL}/token/`);
+    expect(fetchFn.mock.calls[0][1]?.headers).toMatchObject({
+      'Ocp-Apim-Subscription-Key': disbursementsSubscriptionKey,
+    });
+    expect(fetchFn.mock.calls[1][0]).toBe(
+      `${MOMO_SANDBOX_DISBURSEMENT_BASE_URL}/v1_0/transfer`
+    );
+    expect(fetchFn.mock.calls[1][1]?.headers).toMatchObject({
+      Authorization: 'Bearer disb-token',
+      'Ocp-Apim-Subscription-Key': disbursementsSubscriptionKey,
+    });
+  });
+
+  it('uses the disbursement sandbox base url and key for disbursement common calls', async () => {
+    const fetchFn = vi.fn<typeof fetch>();
+    fetchFn.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ access_token: 'disb-token', token_type: 'Bearer', expires_in: 3600 }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    fetchFn.mockResolvedValueOnce(
+      new Response(JSON.stringify({ availableBalance: '50', currency: 'EUR' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+
+    const client = new MomoClient({
+      apiUser,
+      apiKey,
+      collectionsSubscriptionKey,
+      disbursementsSubscriptionKey,
+      environment: 'sandbox',
+      fetchFn,
+    });
+
+    const balance = await client.disbursementCommon.getBalance();
+
+    expect(balance).toEqual({ availableBalance: '50', currency: 'EUR' });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(fetchFn.mock.calls[0][0]).toBe(`${MOMO_SANDBOX_DISBURSEMENT_BASE_URL}/token/`);
+    expect(fetchFn.mock.calls[0][1]?.headers).toMatchObject({
+      'Ocp-Apim-Subscription-Key': disbursementsSubscriptionKey,
+    });
+    expect(fetchFn.mock.calls[1][0]).toBe(
+      `${MOMO_SANDBOX_DISBURSEMENT_BASE_URL}/v1_0/account/balance`
+    );
+    expect(fetchFn.mock.calls[1][1]?.headers).toMatchObject({
+      Authorization: 'Bearer disb-token',
+      'Ocp-Apim-Subscription-Key': disbursementsSubscriptionKey,
+    });
   });
 
   it('creates an access token using basic auth and subscription key', async () => {
